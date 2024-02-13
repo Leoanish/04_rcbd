@@ -15,6 +15,7 @@ Here is where we load the packages we will use.
 library(tidyverse) # for data wrangling and plotting
 library(car) # for Anova function
 library(lme4)
+library(readxl)
 library(broom) # for model residuals extraction
 library(emmeans) # for model mean extraction
 library(multcomp) # for pairwise comparison letter display
@@ -29,7 +30,7 @@ You should NOT analyze a given designed study with a different design than what 
 This is not an option!  
 
 ```{r data import}
-rcbd_df 
+rcbd_df <- read_csv("../data/wheat_nk_balkh.csv")
 
 rcbd_df
 ```
@@ -106,7 +107,7 @@ Below we change the default to sum-to-zero ("contr.sum") before fitting the mode
 options(contrasts = c("contr.sum", "contr.poly"))
 
 # Model fitting
-rcbd_mod 
+rcbd_mod <- lm(yield_kgha ~ nrate_kgha * krate_kgha + rep, data = rcbd_dfw) # rep is never added as interaction in rcbd design when it is ran as a fixed effect
 
 # Summary
 summary(rcbd_mod)
@@ -163,7 +164,7 @@ ggplot(rcbd_resid, aes(x=.fitted, y=.studresid))+
              fill = "purple", 
              size = 3,
              alpha = .7)+
-  #geom_smooth()+
+  geom_smooth()+
   geom_hline(yintercept = c(-3,3), color = "red")+
   theme_bw()
 ```
@@ -186,7 +187,7 @@ ggplot(rcbd_resid, aes(x=.fitted, y=.studresid))+
              fill = "purple", 
              size = 3,
              alpha = .7)+
-  geom_smooth()+
+  geom_smooth(method = "lm")+
   geom_hline(yintercept = c(-3,3), color = "red")+
   theme_bw()
 ```
@@ -255,7 +256,7 @@ Remember that it is at this level that we establish the hierarchy of how our pai
 
 Let's extract it by comparing everything to everything else.
 ```{r interaction means all}
-rcbd_means_all 
+rcbd_means_all <- emmeans(rcbd_mod, ~nrate_kgha:krate_kgha)
 
 rcbd_means_all
 ```
@@ -275,7 +276,10 @@ rcbd_cld_all
 Let's do some light wrangling here to be able to plot these.  
 
 ```{r selected pwc}
-rcbd_cld_selected <- rcbd_cld_all 
+rcbd_cld_selected <- rcbd_cld_all %>% 
+  as.data.frame() %>% 
+  mutate(letters = trimws(.group),
+         trtname = paste0(nrate_kgha, "+", krate_kgha))
 
 rcbd_cld_selected
 ```
@@ -285,7 +289,20 @@ Let's plot our results, including both **raw data** (for allowing our audience t
 Let's make this plot publication ready.  
 
 ```{r rcbd final plot}
+ggplot(mapping = aes(fill = trtname))+
+  geom_boxplot(data = rcbd_dfw, aes(x = trtname, y = yield_kgha), alpha = 0.8, show.legend = F)+
+  geom_jitter(data = rcbd_dfw, aes(x = trtname, y = yield_kgha), shape = 21, show.legend = F, size = 3, alpha = 0.5)+
+  geom_label(data = rcbd_cld_selected, aes(label = letters, y = emmean, x = trtname), fill = "white", show.legend = F)+
+  labs(x = "N rate + K rate (kg/ha)",
+       y = "Yield (kg/ha)")+
+  scale_fill_viridis_d()+
+  theme_classic()+
+  theme(panel.background = element_rect(fill = "gray80"))
 
+# ggsave("../output/rcbd_means.png",
+#        height = 6,
+#        width = 9,
+#        dpi = 600)
 ```
 
 
